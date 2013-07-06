@@ -17,7 +17,7 @@ do {
 	foreach ($data['_embedded'] as $item) {
 		fwrite($output, $item['_links']['alternate']['application/xml']['href'] . "\n");
 		continue;
-		$command = sprintf('wget %s --continue --output-document %s',
+		$command = sprintf('wget %s --continue --header="Accept-Encoding: gzip" --output-document %s',
 			escapeshellarg($item['_links']['alternate']['application/xml']['href']),
 			escapeshellarg(OUTPUT_DIR . base64_encode($item['@id']) . '.xml'));
 		exec($command);

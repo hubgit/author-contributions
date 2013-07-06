@@ -48,7 +48,7 @@ for ($offset = 0; $offset <= $count; $offset += $limit) {
 		$id = (int) $idNode->textContent;
 		$url = 'http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=' . $id;
 
-		$command = sprintf('wget %s --continue --output-document %s',
+		$command = sprintf('wget %s --continue --header="Accept-Encoding: gzip,deflate" --output-document %s',
 			escapeshellarg($url),
 			escapeshellarg(OUTPUT_DIR . $id . '.xml'));
 		exec($command);

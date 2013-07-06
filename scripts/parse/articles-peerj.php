@@ -16,6 +16,7 @@ $contributionTypes = array(
 	'analyzed' => 'analyzed the data',
 	'contributed' => 'contributed reagents/materials/analysis tools',
 	'wrote' => 'wrote the paper',
+	//'read' => 'read the'
 );
 
 $files = glob(INPUT_DIR . '*.xml');
@@ -37,75 +38,93 @@ foreach ($files as $file) {
 		continue;
 	}
 
+	$contributions = array();
 	foreach ($contributionNodes as $contributionNode) {
-		$fullContributionText = $contributionNode->nodeValue;
-
 		$contribRidNodes = $xpath->query('xref[@ref-type="contrib"]/@rid', $contributionNode);
-		foreach ($contribRidNodes as $contribRidNode) {
-			$authorNode = $dom->getElementById($contribRidNode->nodeValue);
 
-			/* get the author position by counting the number of previous siblings, assuming they are also authors */
-			$position = 1;
-			$sibling = $authorNode;
-			while ($sibling = $sibling->previousSibling) {
+		foreach ($contribRidNodes as $contribRidNode) {
+			$contribId = $contribRidNode->nodeValue;
+			$contributions[$contribId] = $contributionNode;
+		}
+	}
+
+	$authorNodes = $xpath->query('front/article-meta/contrib-group[@content-type="authors"]/contrib[@contrib-type="author"]');
+
+	foreach ($authorNodes as $authorNode) {
+		$contribId = $authorNode->getAttribute('id');
+
+		/* get the author position by counting the number of previous siblings */
+		$position = 1;
+		$sibling = $authorNode;
+		while ($sibling = $sibling->previousSibling) {
+			if ($sibling->nodeType === XML_ELEMENT_NODE && $sibling->nodeName == 'contrib' && $sibling->getAttribute('contrib-type') == 'author') {
 				$position++;
 			}
-
-			$contribution = array(
-				'doi' => $doi,
-				'position' => $position,
-				'name' => array(),
-				'initials' => '',
-				'conceived' => 0,
-				'performed' => 0,
-				'analyzed' => 0,
-				'contributed' => 0,
-				'wrote' => 0,
-				'countries' => array(),
-				'affiliations' => array(),
-				'text' => $fullContributionText,
-			);
-
-			foreach ($contributionTypes as $contributionType => $contributionText) {
-				if (stripos($fullContributionText, $contributionText) !== false) {
-					$contribution[$contributionType] = 1;
-				}
-			}
-
-			$givenNameNodes = $xpath->query('name/given-names', $authorNode);
-			if ($givenNameNodes->length) {
-				$contribution['name'][] = $givenNameNodes->item(0)->textContent;
-			}
-
-			$surnameNodes = $xpath->query('name/surname', $authorNode);
-			if ($surnameNodes->length) {
-				$contribution['name'][] = $surnameNodes->item(0)->textContent;
-			}
-
-			$affRidNodes = $xpath->query('xref[@ref-type="aff"]/@rid', $authorNode);
-			if ($affRidNodes->length) {
-				foreach ($affRidNodes as $affRidNode) {
-					$affNode = $dom->getElementById($affRidNode->nodeValue);
-
-					$labelNode = $xpath->query('label', $affNode)->item(0);
-					if ($labelNode) {
-						$affNode->removeChild($labelNode);
-					}
-
-					$contribution['affiliations'][] = $affNode->textContent;
-
-					$countryNodes = $xpath->query('country', $affNode);
-					if ($countryNodes->length) {
-						$contribution['countries'][] = $countryNodes->item(0)->textContent;
-					}
-				}
-			}
-
-			$contribution['name'] = implode(' ', $contribution['name']);
-			$contribution['countries'] = implode('; ', array_unique($contribution['countries']));
-			$contribution['affiliations'] = implode('; ', $contribution['affiliations']);
-
-			fputcsv($output, $contribution);
 		}
+
+		$author = array(
+			'doi' => $doi,
+			'position' => $position,
+			'name' => array(),
+			'initials' => '',
+			'conceived' => 0,
+			'performed' => 0,
+			'analyzed' => 0,
+			'contributed' => 0,
+			'wrote' => 0,
+			//'read' => 0,
+			'countries' => array(),
+			'affiliations' => array(),
+			'text' => null,
+		);
+
+		if (isset($contributions[$contribId])) {
+			$contributionNode = $contributions[$contribId];
+			//foreach ($contributions[$contribId] as $contributionNode) {
+				$fullContributionText = $contributionNode->nodeValue;
+				$author['text'] = $fullContributionText;
+
+				foreach ($contributionTypes as $contributionType => $contributionText) {
+					if (stripos($fullContributionText, $contributionText) !== false) {
+						$author[$contributionType] = 1;
+					}
+				}
+			//}
+		}
+
+		$givenNameNodes = $xpath->query('name/given-names', $authorNode);
+		if ($givenNameNodes->length) {
+			$author['name'][] = $givenNameNodes->item(0)->textContent;
+		}
+
+		$surnameNodes = $xpath->query('name/surname', $authorNode);
+		if ($surnameNodes->length) {
+			$author['name'][] = $surnameNodes->item(0)->textContent;
+		}
+
+		$affRidNodes = $xpath->query('xref[@ref-type="aff"]/@rid', $authorNode);
+		if ($affRidNodes->length) {
+			foreach ($affRidNodes as $affRidNode) {
+				$affNode = $dom->getElementById($affRidNode->nodeValue);
+
+				$labelNode = $xpath->query('label', $affNode)->item(0);
+				if ($labelNode) {
+					$affNode->removeChild($labelNode);
+				}
+
+				$author['affiliations'][] = $affNode->textContent;
+
+				$countryNodes = $xpath->query('country', $affNode);
+				if ($countryNodes->length) {
+					$author['countries'][] = $countryNodes->item(0)->textContent;
+				}
+			}
+		}
+
+		$author['name'] = implode(' ', $author['name']);
+		$author['countries'] = implode('; ', array_unique($author['countries']));
+		$author['affiliations'] = implode('; ', $author['affiliations']);
+
+		fputcsv($output, $author);
 	}
 }
